@@ -1,0 +1,35 @@
+# 1) load mamba and the chosen CUDA + cuDNN modules
+module purge
+module load mamba/latest
+module load cuda-12.8.1-gcc-12.1.0    # recommended from your list
+module load cudnn/9.17.1-cuda12
+
+# 2) verify nvcc exists and get the CUDA root
+which nvcc || { echo "nvcc not found — ensure you are on a GPU node"; exit 1; }
+nvcc --version
+export CUDA_HOME="$(dirname "$(dirname "$(which nvcc)")")"
+echo "CUDA_HOME=$CUDA_HOME"
+
+# 3) create & activate mamba env (python 3.10 recommended)
+mamba create -y -n flashattn-env python=3.10
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate flashattn-env
+
+# 4) upgrade pip/build tools
+python -m pip install --upgrade pip setuptools wheel
+
+# 5) (optional) install torch matching cu128
+# If you want pip-installed torch with cu128:
+python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 torch --pre
+
+# 6) install flash-attn (tries wheel, falls back to building with nvcc)
+pip install flash-attn==2.8.3 || pip install --no-cache-dir flash-attn==2.8.3
+
+# 7) quick checks
+python -c "import torch; print('torch', getattr(torch,'__version__','<not installed>'))"
+python -c "import importlib,traceback
+try:
+  import flash_attn
+  print('flash_attn import OK', getattr(flash_attn,'__version__',None))
+except Exception:
+  traceback.print_exc()"
